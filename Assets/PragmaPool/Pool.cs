@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Pragma.Pool
@@ -9,6 +10,10 @@ namespace Pragma.Pool
         protected readonly List<TObject> activeObjects;
         protected readonly Stack<TObject> sleepObjects;
 
+        public event Action<TObject> CreateEvent;
+        public event Action<TObject> SpawnEvent;
+        public event Action<TObject> ReleaseEvent;
+        
         public IReadOnlyList<TObject> ActiveObjects => activeObjects;
 
         public Pool(IPoolObjectFactory factory = null)
@@ -19,10 +24,13 @@ namespace Pragma.Pool
             sleepObjects = new Stack<TObject>();
         }
 
+        protected virtual object GetCreateData() => null;
+
         protected virtual TObject Create()
         {
-            var instance = factory.Create<TObject>();
+            var instance = factory.Create<TObject>(GetCreateData());
             instance.ReleaseRequestAction = Release;
+            CreateEvent?.Invoke(instance);
             return instance;
         }
         
@@ -45,9 +53,31 @@ namespace Pragma.Pool
         public virtual TObject Spawn()
         {
             var instance = GetOrCreate();
-            instance.OnSpawn();
-            activeObjects.Add(instance);
+            RegisterInstance(instance);
             return instance;
+        }
+
+        protected virtual void RegisterInstance(TObject instance, bool isSendCallback = true)
+        {
+            if (isSendCallback)
+            {
+                instance.OnSpawn();
+                SpawnEvent?.Invoke(instance);   
+            }
+
+            activeObjects.Add(instance);
+        }
+        
+        protected virtual void DeregisterInstance(TObject instance, bool isSendCallback = true)
+        {
+            if (isSendCallback)
+            {
+                instance.OnRelease();
+                ReleaseEvent?.Invoke(instance);
+            }
+
+            activeObjects.Remove(instance);
+            sleepObjects.Push(instance);
         }
 
         public void Release(IPoolObject instance)
@@ -64,9 +94,7 @@ namespace Pragma.Pool
 
         public virtual void Release(TObject instance)
         {
-            instance.OnRelease();
-            activeObjects.Remove(instance);
-            sleepObjects.Push(instance);
+            DeregisterInstance(instance);
         }
 
         public void ReleaseAll()
@@ -77,33 +105,39 @@ namespace Pragma.Pool
             }
         }
         
-        public virtual void Clear()
+        public virtual void DestroyObjects()
         {
             ReleaseAll();
+            
+            foreach (var sleepObject in sleepObjects)
+            {
+                DestroyObject(sleepObject);
+            }
+            
             sleepObjects.Clear();
         }
 
-        public void AddInstance(TObject instance, bool isActive, bool isInvokeCallback)
+        protected virtual void DestroyObject(TObject instance)
+        {
+            instance.ReleaseRequestAction = null;
+            
+            if (instance is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+        }
+
+        public void AddInstance(TObject instance, bool isActive, bool isSendCallback)
         {
             if (isActive)
             {
                 instance.ReleaseRequestAction = Release;
 
-                if (isInvokeCallback)
-                {
-                    instance.OnSpawn();
-                }
-                
-                activeObjects.Add(instance);
+                RegisterInstance(instance, isSendCallback);
             }
             else
             {
-                if (isInvokeCallback)
-                {
-                    instance.OnRelease();
-                }
-                
-                sleepObjects.Push(instance);
+                DeregisterInstance(instance, isSendCallback);
             }
         }
 
@@ -115,9 +149,9 @@ namespace Pragma.Pool
             }
         }
 
-        public void ClearToLimit(int limit)
+        public void DestroyObjectsToLimit(int limit)
         {
-            var different = activeObjects.Count - limit;
+            var different = sleepObjects.Count - limit;
 
             if (different <= 0)
             {
@@ -126,7 +160,7 @@ namespace Pragma.Pool
 
             for (var i = 0; i < different; i++)
             {
-                sleepObjects.Pop();
+                DestroyObject(sleepObjects.Pop());
             }
         }
     }

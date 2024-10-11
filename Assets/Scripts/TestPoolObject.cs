@@ -1,9 +1,10 @@
 ﻿using System;
 using Pragma.Pool;
+using UnityEngine;
 
 namespace DefaultNamespace
 {
-    public class TestPoolObject : IPoolObject
+    public class TestPoolObject : MonoBehaviour, IPoolObject
     {
         public Action<IPoolObject> ReleaseRequestAction { get; set; }
         

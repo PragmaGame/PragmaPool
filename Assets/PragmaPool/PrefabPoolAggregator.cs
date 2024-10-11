@@ -22,7 +22,7 @@ namespace Pragma.Pool
             _container.SetParent(parent);
         }
 
-        public IPrefabPool<TPoolObject> GetOrCreatePool<TPoolObject>(TPoolObject prefab) where TPoolObject : Component, IPoolObject
+        public IPrefabPool<TPoolObject> GetPool<TPoolObject>(TPoolObject prefab) where TPoolObject : Component, IPoolObject
         {
             if (_pools.TryGetValue(prefab, out var pool))
             {
@@ -37,22 +37,33 @@ namespace Pragma.Pool
 
         public TPoolObject Spawn<TPoolObject>(TPoolObject prefab) where TPoolObject : Component, IPoolObject
         {
-            return GetOrCreatePool(prefab).Spawn();
+            return GetPool(prefab).Spawn();
         }
         
         public TPoolObject Spawn<TPoolObject>(TPoolObject prefab, Transform parent, bool worldPositionStay) where TPoolObject : Component, IPoolObject
         {
-            return GetOrCreatePool(prefab).Spawn(parent, worldPositionStay);
+            return GetPool(prefab).Spawn(parent, worldPositionStay);
         }
         
         public TPoolObject Spawn<TPoolObject>(TPoolObject prefab, Vector3 position, Quaternion rotation, Transform parent = null) where TPoolObject : Component, IPoolObject
         {
-            return GetOrCreatePool(prefab).Spawn(position, rotation, parent);
+            return GetPool(prefab).Spawn(position, rotation, parent);
+        }
+        
+        public TComponent Spawn<TComponent>(GameObject prefab) where TComponent : Component
+        {
+            var origin = prefab.GetComponent<PrefabPoolObject>();
+            return GetPool(origin).Spawn().GetComponent<TComponent>();
         }
 
         public void Release<TPoolObject>(TPoolObject instance) where TPoolObject : Component, IPoolObject
         {
             instance.ReleaseRequest();
+        }
+        
+        public void Release(Component instance)
+        {
+            instance.GetComponent<PrefabPoolObject>().ReleaseRequest();
         }
 
         public void ReleasePool<TPoolObject>(TPoolObject prefab) where TPoolObject : Component, IPoolObject
@@ -71,25 +82,25 @@ namespace Pragma.Pool
             }
         }
 
-        public void ClearPool<TPoolObject>(TPoolObject prefab) where TPoolObject : Component, IPoolObject
+        public void DestroyObjectsInPool<TPoolObject>(TPoolObject prefab) where TPoolObject : Component, IPoolObject
         {
             if (_pools.TryGetValue(prefab, out var pool))
             {
-                pool.Clear();
+                pool.DestroyObjects();
             }
         }
 
-        public void ClearAllPolls()
+        public void DestroyObjectsInAllPolls()
         {
             foreach (var pool in _pools.Values)
             {
-                pool.Clear();
+                pool.DestroyObjects();
             }
         }
 
         public void Prewarm<TPoolObject>(TPoolObject prefab, int value) where TPoolObject : Component, IPoolObject
         {
-            GetOrCreatePool(prefab).Prewarm(value);
+            GetPool(prefab).Prewarm(value);
         }
     }
 }

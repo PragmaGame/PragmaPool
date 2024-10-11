@@ -27,27 +27,7 @@ namespace Pragma.Pool
             }
         }
 
-        protected override TObject Create()
-        {
-            var instance = factory.Create<TObject>(_prefab);
-            instance.ReleaseRequestAction = Release;
-            return instance;
-        }
-
-        public TComponent Spawn<TComponent>() where TComponent : Component
-        {
-            return Spawn().gameObject.GetComponent<TComponent>();
-        }
-
-        public TComponent Spawn<TComponent>(Transform parent, bool worldPositionStays = true) where TComponent : Component
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public TComponent Spawn<TComponent>(Vector3 position, Quaternion rotation, Transform parent = null) where TComponent : Component
-        {
-            throw new System.NotImplementedException();
-        }
+        protected override object GetCreateData() => _prefab;
 
         public override TObject Spawn()
         {
@@ -55,9 +35,7 @@ namespace Pragma.Pool
             
             instance.gameObject.SetActive(true);
             
-            instance.OnSpawn();
-            activeObjects.Add(instance);
-            
+            RegisterInstance(instance);
             return instance;
         }
         
@@ -68,9 +46,7 @@ namespace Pragma.Pool
             instance.transform.SetParent(parent, worldPositionStays);
             instance.gameObject.SetActive(true);
             
-            instance.OnSpawn();
-            activeObjects.Add(instance);
-            
+            RegisterInstance(instance);
             return instance;
         }
         
@@ -82,9 +58,7 @@ namespace Pragma.Pool
             instance.transform.SetPositionAndRotation(position, rotation);
             instance.gameObject.SetActive(true);
             
-            instance.OnSpawn();
-            activeObjects.Add(instance);
-            
+            RegisterInstance(instance);
             return instance;
         }
 
@@ -96,16 +70,27 @@ namespace Pragma.Pool
             base.Release(instance);
         }
 
-        public override void Clear()
+        protected override void DestroyObject(TObject instance)
         {
-            ReleaseAll();
+            instance.ReleaseRequestAction = null;
+            Object.Destroy(instance.gameObject);
+        }
 
-            foreach (var instance in sleepObjects)
-            {
-                Object.Destroy(instance.gameObject);
-            }
-            
-            sleepObjects.Clear();
+        public TComponent SpawnByComponent<TComponent>() where TComponent : Component
+        {
+            return Spawn().GetComponent<TComponent>();
+        }
+
+        public TComponent SpawnByComponent<TComponent>(Transform parent, bool worldPositionStays = true)
+            where TComponent : Component
+        {
+            return Spawn(parent, worldPositionStays).GetComponent<TComponent>();
+        }
+
+        public TComponent SpawnByComponent<TComponent>(Vector3 position, Quaternion rotation, Transform parent = null)
+            where TComponent : Component
+        {
+            return Spawn(position, rotation, parent).GetComponent<TComponent>();
         }
     }
 }
