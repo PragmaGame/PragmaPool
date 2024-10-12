@@ -11,6 +11,7 @@ namespace Pragma.Pool
         protected readonly Stack<TObject> sleepObjects;
 
         public event Action<TObject> CreateEvent;
+        public event Action<TObject> DestroyEvent;
         public event Action<TObject> SpawnEvent;
         public event Action<TObject> ReleaseEvent;
         
@@ -105,22 +106,24 @@ namespace Pragma.Pool
             }
         }
         
-        public virtual void DestroyObjects()
+        public virtual void DestroyAll()
         {
             ReleaseAll();
             
             foreach (var sleepObject in sleepObjects)
             {
-                DestroyObject(sleepObject);
+                Destroy(sleepObject);
             }
             
             sleepObjects.Clear();
         }
 
-        protected virtual void DestroyObject(TObject instance)
+        protected virtual void Destroy(TObject instance)
         {
-            instance.ReleaseRequestAction = null;
+            DestroyEvent?.Invoke(instance);
             
+            instance.ReleaseRequestAction = null;
+
             if (instance is IDisposable disposable)
             {
                 disposable.Dispose();
@@ -149,7 +152,7 @@ namespace Pragma.Pool
             }
         }
 
-        public void DestroyObjectsToLimit(int limit)
+        public void DestroyToLimit(int limit)
         {
             var different = sleepObjects.Count - limit;
 
@@ -160,7 +163,7 @@ namespace Pragma.Pool
 
             for (var i = 0; i < different; i++)
             {
-                DestroyObject(sleepObjects.Pop());
+                Destroy(sleepObjects.Pop());
             }
         }
     }

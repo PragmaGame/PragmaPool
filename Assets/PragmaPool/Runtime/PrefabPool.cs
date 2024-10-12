@@ -70,9 +70,9 @@ namespace Pragma.Pool
             base.Release(instance);
         }
 
-        protected override void DestroyObject(TObject instance)
+        protected override void Destroy(TObject instance)
         {
-            instance.ReleaseRequestAction = null;
+            base.Destroy(instance);
             Object.Destroy(instance.gameObject);
         }
 
