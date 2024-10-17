@@ -1,15 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
-using UnityEngine;
 
 namespace Pragma.Pool
 {
-    public class Pool<TObject> : IPool<TObject> where TObject : class, IPoolObject
+    public class Pool<TObject> : IPool<TObject> where TObject : class
     {
         protected readonly IPoolObjectFactory factory;
         protected readonly List<TObject> activeObjects;
         protected readonly Stack<TObject> sleepObjects;
 
+        protected object createData;
+        
         public event Action<TObject> CreateEvent;
         public event Action<TObject> DestroyEvent;
         public event Action<TObject> SpawnEvent;
@@ -17,22 +18,25 @@ namespace Pragma.Pool
         
         public IReadOnlyList<TObject> ActiveObjects => activeObjects;
 
-        public Pool(IPoolObjectFactory factory = null)
+        public Pool(IPoolObjectFactory factory = null, object createData = null)
         {
+            this.createData = createData;
             this.factory = factory ?? new ActivatorPoolObjectFactory();
 
             activeObjects = new List<TObject>();
             sleepObjects = new Stack<TObject>();
         }
 
-        protected virtual object GetCreateData() => null;
-
-        protected virtual TObject Create()
+        protected TObject Create()
         {
-            var instance = factory.Create<TObject>(GetCreateData());
-            instance.ReleaseRequestAction = Release;
+            var instance = factory.Create<TObject>(createData);
+            OnCreate(instance);
             CreateEvent?.Invoke(instance);
             return instance;
+        }
+
+        protected virtual void OnCreate(TObject instance)
+        {
         }
         
         protected TObject GetOrCreate()
@@ -58,22 +62,28 @@ namespace Pragma.Pool
             return instance;
         }
 
-        protected virtual void RegisterInstance(TObject instance, bool isSendCallback = true)
+        protected void RegisterInstance(TObject instance, bool isSendCallback = true)
         {
+            OnRegisterInstance(instance);
+            
             if (isSendCallback)
             {
-                instance.OnSpawn();
                 SpawnEvent?.Invoke(instance);   
             }
 
             activeObjects.Add(instance);
         }
-        
-        protected virtual void DeregisterInstance(TObject instance, bool isSendCallback = true)
+
+        protected virtual void OnRegisterInstance(TObject instance)
         {
+        }
+        
+        protected void DeregisterInstance(TObject instance, bool isSendCallback = true)
+        {
+            OnDeregisterInstance(instance);
+            
             if (isSendCallback)
             {
-                instance.OnRelease();
                 ReleaseEvent?.Invoke(instance);
             }
 
@@ -81,16 +91,8 @@ namespace Pragma.Pool
             sleepObjects.Push(instance);
         }
 
-        public void Release(IPoolObject instance)
+        protected virtual void OnDeregisterInstance(TObject instance)
         {
-            if (instance is TObject convert)
-            {
-                Release(convert);
-            }
-            else
-            {
-                Debug.LogError($"Fail release {instance}. Instance has type {instance.GetType()},cannot convert to {typeof(TObject)}");
-            }
         }
 
         public virtual void Release(TObject instance)
@@ -118,11 +120,11 @@ namespace Pragma.Pool
             sleepObjects.Clear();
         }
 
-        protected virtual void Destroy(TObject instance)
+        protected void Destroy(TObject instance)
         {
             DestroyEvent?.Invoke(instance);
             
-            instance.ReleaseRequestAction = null;
+            OnDestroy(instance);
 
             if (instance is IDisposable disposable)
             {
@@ -130,18 +132,26 @@ namespace Pragma.Pool
             }
         }
 
+        protected virtual void OnDestroy(TObject instance)
+        {
+        }
+
         public void AddInstance(TObject instance, bool isActive, bool isSendCallback)
         {
             if (isActive)
             {
-                instance.ReleaseRequestAction = Release;
-
                 RegisterInstance(instance, isSendCallback);
             }
             else
             {
                 DeregisterInstance(instance, isSendCallback);
             }
+            
+            OnAddInstance(instance);
+        }
+
+        protected virtual void OnAddInstance(TObject instance)
+        {
         }
 
         public virtual void Prewarm(int value)

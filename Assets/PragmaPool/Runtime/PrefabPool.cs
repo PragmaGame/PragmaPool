@@ -2,7 +2,7 @@
 
 namespace Pragma.Pool
 {
-    public class PrefabPool<TObject> : Pool<TObject>, IPrefabPool<TObject> where TObject : Component, IPoolObject
+    public class PrefabPool<TObject> : SendingPool<TObject>, IPrefabPool<TObject> where TObject : Component, IPoolObject
     {
         private readonly TObject _prefab;
         
@@ -10,7 +10,7 @@ namespace Pragma.Pool
 
         public Component Prefab => _prefab;
 
-        public PrefabPool(IPoolObjectFactory factory, TObject prefab, Transform parent = null, string name = null) : base(factory)
+        public PrefabPool(IPoolObjectFactory factory, TObject prefab, Transform parent = null, string name = null) : base(factory, prefab)
         {
             _prefab = prefab;
             
@@ -26,8 +26,6 @@ namespace Pragma.Pool
                 container.SetParent(parent, false);
             }
         }
-
-        protected override object GetCreateData() => _prefab;
 
         public override TObject Spawn()
         {
@@ -70,9 +68,9 @@ namespace Pragma.Pool
             base.Release(instance);
         }
 
-        protected override void Destroy(TObject instance)
+        protected override void OnDestroy(TObject instance)
         {
-            base.Destroy(instance);
+            base.OnDestroy(instance);
             Object.Destroy(instance.gameObject);
         }
 
