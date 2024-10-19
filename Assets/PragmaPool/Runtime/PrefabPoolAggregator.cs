@@ -70,7 +70,7 @@ namespace Pragma.Pool
         {
             if (_pools.TryGetValue(prefab, out var pool))
             {
-                pool.ReleaseAll();
+                pool.Release();
             }
         }
 
@@ -78,7 +78,7 @@ namespace Pragma.Pool
         {
             foreach (var pool in _pools.Values)
             {
-                pool.ReleaseAll();
+                pool.Release();
             }
         }
 
@@ -86,7 +86,7 @@ namespace Pragma.Pool
         {
             if (_pools.TryGetValue(prefab, out var pool))
             {
-                pool.DestroyAll();
+                pool.Destroy();
             }
         }
 
@@ -94,7 +94,7 @@ namespace Pragma.Pool
         {
             foreach (var pool in _pools.Values)
             {
-                pool.DestroyAll();
+                pool.Destroy();
             }
         }
 

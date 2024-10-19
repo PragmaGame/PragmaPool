@@ -2,7 +2,7 @@
 
 namespace Pragma.Pool
 {
-    public class PrefabPool<TObject> : SendingPool<TObject>, IPrefabPool<TObject> where TObject : Component, IPoolObject
+    public class PrefabPool<TObject> : ManagedPool<TObject>, IPrefabPool<TObject> where TObject : Component, IPoolObject
     {
         private readonly TObject _prefab;
         
@@ -29,34 +29,34 @@ namespace Pragma.Pool
 
         public override TObject Spawn()
         {
-            var instance = GetOrCreate();
+            var instance = SpawnInternal();
             
             instance.gameObject.SetActive(true);
             
-            RegisterInstance(instance);
+            Notify(PoolSignal.Spawn, instance);
             return instance;
         }
         
         public TObject Spawn(Transform parent, bool worldPositionStays = true)
         {
-            var instance = GetOrCreate();
+            var instance = SpawnInternal();
             
             instance.transform.SetParent(parent, worldPositionStays);
             instance.gameObject.SetActive(true);
             
-            RegisterInstance(instance);
+            Notify(PoolSignal.Spawn, instance);
             return instance;
         }
         
         public TObject Spawn(Vector3 position, Quaternion rotation, Transform parent = null)
         {
-            var instance = GetOrCreate();
+            var instance = SpawnInternal();
             
             instance.transform.SetParent(parent);
             instance.transform.SetPositionAndRotation(position, rotation);
             instance.gameObject.SetActive(true);
             
-            RegisterInstance(instance);
+            Notify(PoolSignal.Spawn, instance);
             return instance;
         }
 

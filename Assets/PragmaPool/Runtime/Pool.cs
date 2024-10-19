@@ -5,41 +5,52 @@ namespace Pragma.Pool
 {
     public class Pool<TObject> : IPool<TObject> where TObject : class
     {
+        private readonly Dictionary<PoolSignal, Action<TObject>> _notifyActions;
+        
         protected readonly IPoolObjectFactory factory;
-        protected readonly List<TObject> activeObjects;
         protected readonly Stack<TObject> sleepObjects;
 
         protected object createData;
-        
-        public event Action<TObject> CreateEvent;
-        public event Action<TObject> DestroyEvent;
-        public event Action<TObject> SpawnEvent;
-        public event Action<TObject> ReleaseEvent;
-        
-        public IReadOnlyList<TObject> ActiveObjects => activeObjects;
 
         public Pool(IPoolObjectFactory factory = null, object createData = null)
         {
             this.createData = createData;
             this.factory = factory ?? new ActivatorPoolObjectFactory();
-
-            activeObjects = new List<TObject>();
+            
             sleepObjects = new Stack<TObject>();
+
+            _notifyActions = new Dictionary<PoolSignal, Action<TObject>>
+            {
+                { PoolSignal.Create, default },
+                { PoolSignal.Spawn, default },
+                { PoolSignal.Release, default },
+                { PoolSignal.Destroy, default }
+            };
         }
 
-        protected TObject Create()
+        public void Register(PoolSignal signal, Action<TObject> handler)
+        {
+            _notifyActions[signal] += handler;
+        }
+
+        public void Deregister(PoolSignal signal, Action<TObject> handler)
+        {
+            _notifyActions[signal] -= handler;
+        }
+
+        protected void Notify(PoolSignal signal, TObject instance)
+        {
+            _notifyActions[signal]?.Invoke(instance);
+        }
+        
+        protected virtual TObject Create()
         {
             var instance = factory.Create<TObject>(createData);
-            OnCreate(instance);
-            CreateEvent?.Invoke(instance);
+            Notify(PoolSignal.Create, instance);
             return instance;
         }
 
-        protected virtual void OnCreate(TObject instance)
-        {
-        }
-        
-        protected TObject GetOrCreate()
+        protected virtual TObject SpawnInternal()
         {
             TObject instance;
             
@@ -51,78 +62,26 @@ namespace Pragma.Pool
             {
                 instance = Create();
             }
-
+            
             return instance;
         }
 
         public virtual TObject Spawn()
         {
-            var instance = GetOrCreate();
-            RegisterInstance(instance);
+            var instance = SpawnInternal();
+            Notify(PoolSignal.Spawn, instance);
             return instance;
-        }
-
-        protected void RegisterInstance(TObject instance, bool isSendCallback = true)
-        {
-            OnRegisterInstance(instance);
-            
-            if (isSendCallback)
-            {
-                SpawnEvent?.Invoke(instance);   
-            }
-
-            activeObjects.Add(instance);
-        }
-
-        protected virtual void OnRegisterInstance(TObject instance)
-        {
-        }
-        
-        protected void DeregisterInstance(TObject instance, bool isSendCallback = true)
-        {
-            OnDeregisterInstance(instance);
-            
-            if (isSendCallback)
-            {
-                ReleaseEvent?.Invoke(instance);
-            }
-
-            activeObjects.Remove(instance);
-            sleepObjects.Push(instance);
-        }
-
-        protected virtual void OnDeregisterInstance(TObject instance)
-        {
         }
 
         public virtual void Release(TObject instance)
         {
-            DeregisterInstance(instance);
-        }
-
-        public void ReleaseAll()
-        {
-            foreach (var activeObject in activeObjects)
-            {
-                Release(activeObject);
-            }
-        }
-        
-        public virtual void DestroyAll()
-        {
-            ReleaseAll();
-            
-            foreach (var sleepObject in sleepObjects)
-            {
-                Destroy(sleepObject);
-            }
-            
-            sleepObjects.Clear();
+            sleepObjects.Push(instance);
+            Notify(PoolSignal.Release, instance);
         }
 
         protected void Destroy(TObject instance)
         {
-            DestroyEvent?.Invoke(instance);
+            Notify(PoolSignal.Destroy, instance);
             
             OnDestroy(instance);
 
@@ -136,24 +95,6 @@ namespace Pragma.Pool
         {
         }
 
-        public void AddInstance(TObject instance, bool isActive, bool isSendCallback)
-        {
-            if (isActive)
-            {
-                RegisterInstance(instance, isSendCallback);
-            }
-            else
-            {
-                DeregisterInstance(instance, isSendCallback);
-            }
-            
-            OnAddInstance(instance);
-        }
-
-        protected virtual void OnAddInstance(TObject instance)
-        {
-        }
-
         public virtual void Prewarm(int value)
         {
             for (var i = 0; i < value; i++)
@@ -162,9 +103,9 @@ namespace Pragma.Pool
             }
         }
 
-        public void DestroyToLimit(int limit)
+        public void Destroy(int remainder = 0)
         {
-            var different = sleepObjects.Count - limit;
+            var different = sleepObjects.Count - remainder;
 
             if (different <= 0)
             {
